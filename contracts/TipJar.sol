@@ -10,9 +10,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 /// @dev This contract is used to collect crypto tips
 /// @dev This contract allows the owner to withdraw the tips
 contract TipJar is Ownable {
-  // state variable to hold the total tips collected
-  uint256 public totalTips;
-
   // mapping to store tips and tipper
   mapping(address => uint256) public tips;
 
@@ -23,9 +20,7 @@ contract TipJar is Ownable {
   event TipsWithdrawn(address indexed to, uint256 amount);
 
   /// @notice constructor to initialize the total tips collected to 0
-  constructor() {
-    totalTips = 0;
-  }
+  constructor() payable { }
 
   /// @notice modifer to check if the tip amount is greater than 0
   /// @param _amount the tip amount to check
@@ -37,10 +32,10 @@ contract TipJar is Ownable {
   /// @notice fallback payable function to receive tips
   /// @dev this function is called when a user sends ether to this contract
   /// @dev we usee the checkTipAmount modifier to check if the tip amount is greater than 0
-  receive() external payable checkTipAmount(msg.value) {
-    // update total tips collected
-    totalTips += msg.value;
-
+  receive() 
+  external 
+  payable 
+  checkTipAmount(msg.value) {
     // update mapping of tips
     tips[msg.sender] += msg.value;
 
@@ -48,32 +43,45 @@ contract TipJar is Ownable {
     emit TipReceived(msg.sender, msg.value);
   }
 
-  /// @notice funtion to send tips to this contract
-  /// @param _amount the amount of ether to send to this contract
-  function sendTip(uint256 _amount) external checkTipAmount(_amount) {
-    // update total tips collected
-    totalTips += _amount;
-
+  /// @notice fallback payable function to receive tips
+  /// @dev this function is called when a user sends ether to this contract
+  /// @dev we usee the checkTipAmount modifier to check if the tip amount is greater than 0
+  fallback() 
+  external 
+  payable 
+  checkTipAmount(msg.value) {
     // update mapping of tips
-    tips[msg.sender] += _amount;
-
-    // send ether to this contract
-    payable(address(this)).transfer(_amount);
+    tips[msg.sender] += msg.value;
 
     // emit event to log tips collected
-    emit TipReceived(msg.sender, _amount);
+    emit TipReceived(msg.sender, msg.value);
+  }
+
+
+  /// @notice funtion to send tips to this contract
+  function sendTip() 
+  public 
+  payable 
+  checkTipAmount(msg.value) {
+    // update mapping of tips
+    tips[msg.sender] += msg.value;
+
+    (bool success, ) = payable(address(this)).call{value : msg.value}("");
+    require(success == true, "TipJar: Transfer Failed"); 
+
+    // emit event to log tips collected
+    emit TipReceived(msg.sender, msg.value);
   }
 
   /// @notice function to withdraw tips collected
   /// @dev uses the onlyOwner modifier from the Ownable contract
-  function withdrawTips() public onlyOwner {
-    require(address(this).balance > 0, "TipJar: Insufficient Balance");
-
+  function withdrawTips() 
+  public 
+  onlyOwner {
     // calculate the amount to withdraw
     uint256 amount = address(this).balance;
 
-    // update total tips collected
-    totalTips -= amount;
+    require(address(this).balance > 0, "TipJar: Insufficient Balance");
 
     // transfer the amount to the owner
     payable(owner()).transfer(amount);
@@ -81,4 +89,15 @@ contract TipJar is Ownable {
     // emit event to log tips withdrawn
     emit TipsWithdrawn(owner(), amount);
   }
+
+  /// @notice function to show the contract balance
+  /// @dev uses the onlyOwner modifier from the Ownable contract
+  function getContractBalance() 
+  public 
+  view 
+  onlyOwner 
+  returns (uint256) {
+    return address(this).balance;
+  }
+
 }
