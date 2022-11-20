@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/access/Ownable.sol";
+// import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title TipJar
 /// @author conceptcodes.eth
 /// @notice This contract allows users to send tips to the the owner
-/// @dev This contract is used to send tips
+/// @dev This contract is used to collect crypto tips
 /// @dev This contract allows the owner to withdraw the tips
 contract TipJar is Ownable {
   // state variable to hold the total tips collected
@@ -26,11 +27,17 @@ contract TipJar is Ownable {
     totalTips = 0;
   }
 
-  /// @notice fallback payable function to receive tips
-  /// @dev this function is called when a sends ether to this contract
-  receive() external payable {
-    require(msg.value > 0, 'You must send some Ether');
+  /// @notice modifer to check if the tip amount is greater than 0
+  /// @param _amount the tip amount to check
+  modifier checkTipAmount(uint256 _amount) {
+    require(_amount > 0, "TipJar: Tip amount must be greater than 0");
+    _;
+  }
 
+  /// @notice fallback payable function to receive tips
+  /// @dev this function is called when a user sends ether to this contract
+  /// @dev we usee the checkTipAmount modifier to check if the tip amount is greater than 0
+  receive() external payable checkTipAmount(msg.value) {
     // update total tips collected
     totalTips += msg.value;
 
@@ -41,10 +48,26 @@ contract TipJar is Ownable {
     emit TipReceived(msg.sender, msg.value);
   }
 
+  /// @notice funtion to send tips to this contract
+  /// @param _amount the amount of ether to send to this contract
+  function sendTip(uint256 _amount) external checkTipAmount(_amount) {
+    // update total tips collected
+    totalTips += _amount;
+
+    // update mapping of tips
+    tips[msg.sender] += _amount;
+
+    // send ether to this contract
+    payable(address(this)).transfer(_amount);
+
+    // emit event to log tips collected
+    emit TipReceived(msg.sender, _amount);
+  }
+
   /// @notice function to withdraw tips collected
   /// @dev uses the onlyOwner modifier from the Ownable contract
   function withdrawTips() public onlyOwner {
-    require(address(this).balance > 0, 'Insufficient balance');
+    require(address(this).balance > 0, "TipJar: Insufficient Balance");
 
     // calculate the amount to withdraw
     uint256 amount = address(this).balance;

@@ -29,7 +29,7 @@ describe("TipJar", function () {
 
   describe("Withdrawals", function () {
     describe("Validations", function () {
-      it("Should revert with the right error if called from another account", async function () {
+      it("Should revert with the right error if called from not the owner", async function () {
         const { tips, otherAccount } = await loadFixture(deployTipJar);
 
         await expect(
@@ -41,29 +41,30 @@ describe("TipJar", function () {
         const { tips, owner } = await loadFixture(deployTipJar);
 
         await expect(tips.connect(owner).withdrawTips()).to.be.revertedWith(
-          "Insufficient balance"
+          "TipJar: Insufficient Balance"
         );
       });
     });
 
     describe("Events", function () {
       it("Should emit an event on withdrawals", async function () {
-        const { tips, owner, balance, otherAccount } = await loadFixture(deployTipJar);
-        const tx = await tips.connect(otherAccount).signer.sendTransaction({ 
+        const { tips, owner, balance, otherAccount } = await loadFixture(
+          deployTipJar
+        );
+        await tips.connect(otherAccount).signer.sendTransaction({
           to: tips.address,
-          value: 100
-         });
-        await tx.wait();
+          value: 100,
+        });
         await expect(tips.connect(owner).withdrawTips())
           .to.emit(tips, "TipsWithdrawn")
-          .withArgs(balance, anyValue);
+          .withArgs(owner.address, 100);
       });
     });
   });
 
   describe("Transfers", function () {
     describe("Validations", function () {
-      it("Should revert with the right error if the amount is 0", async function () {
+      it("Fallback: Should revert with the right error if the amount is 0", async function () {
         const { tips, otherAccount } = await loadFixture(deployTipJar);
 
         await expect(
@@ -71,9 +72,41 @@ describe("TipJar", function () {
             to: tips.address,
             value: 0,
           })
-        ).to.be.revertedWith("You must send some Ether");
+        ).to.be.revertedWith("TipJar: Tip amount must be greater than 0");
+      });
+
+      it("Fallback: Balance should update on successful transfers", async function () {
+        const { tips, otherAccount, balance } = await loadFixture(
+          deployTipJar
+        );
+        await tips.connect(otherAccount).signer.sendTransaction({
+          to: tips.address,
+          value: 100,
+        });
+        expect(await ethers.provider.getBalance(tips.address)).to.equal(
+          balance.add(100)
+        );
+      });
+
+      it("Function: Should revert with the right error if the amount is 0", async function () {
+        const { tips, otherAccount } = await loadFixture(deployTipJar);
+
+        await expect(tips.connect(otherAccount).sendTip(0)).to.be.revertedWith(
+          "TipJar: Tip amount must be greater than 0"
+        );
+      });
+
+      it("Function: Balance should update on successful transfers", async function () {
+        const { tips, otherAccount, balance } = await loadFixture(
+          deployTipJar
+        );
+        await tips.connect(otherAccount).sendTip(100);
+        expect(await ethers.provider.getBalance(tips.address)).to.equal(
+          balance.add(100)
+        );
       });
     });
+
     describe("Events", function () {
       it("Should emit an event on transfers", async function () {
         const { tips, otherAccount } = await loadFixture(deployTipJar);
